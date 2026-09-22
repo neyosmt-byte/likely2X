@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { fetchEcosystem, fetchNetwork, HACKATHON, IGNIX_API, XLAYER, type Campaign, type EcosystemSnapshot, type NetworkSnapshot, type TapeoutAsset } from './api/ignix.ts'
+import { fetchTapeout, TAPEOUT, type TapeoutSnapshot } from './api/tapeout.ts'
 
 import './styles.css'
 
@@ -105,9 +106,30 @@ function CampaignMeta({ campaign, fetchedAt }: { campaign: Campaign | null; fetc
   )
 }
 
+function TapeoutProtocolPanel({ tapeout }: { tapeout: TapeoutSnapshot | null }) {
+  return (
+    <section className="panel protocol-panel">
+      <div className="panel-heading"><div><span className="eyebrow">01 · PROTOCOL LAYER</span><h2>TapeOut 生态总览</h2><p>这里看的是完整协议生态：Processor、Circuit、任务题库、Proof-of-Design 挖矿、参与者和最近流片事件。官方当前公开 feed 标注为 BSC 主网，黑客松部署目标单独是 X Layer。</p></div><span className="source-tag">{TAPEOUT.website}/pod/*.json</span></div>
+      {tapeout?.errors.length ? <div className="notice warning"><strong>TapeOut feed 部分降级</strong><span>{tapeout.errors.join(' · ')}</span></div> : null}
+      <div className="protocol-grid">
+        <div className="protocol-network"><span className="eyebrow">CANONICAL FEED</span><strong>{tapeout?.chain.chainId ? `chainId ${tapeout.chain.chainId}` : '读取中'}</strong><small>{tapeout?.chain.rpc || `${TAPEOUT.website}/pod`}</small><a href={TAPEOUT.website} target="_blank" rel="noreferrer">打开 TapeOut ↗</a></div>
+        <div className="protocol-stat"><span>PROCESSORS</span><strong>{tapeout?.processors.length ?? '—'}</strong><small>官方配置中的处理器</small></div>
+        <div className="protocol-stat"><span>CIRCUIT SLOTS</span><strong>{tapeout?.miners.slots?.toLocaleString() ?? '—'}</strong><small>{tapeout?.miners.addresses?.toLocaleString() ?? '—'} 个地址</small></div>
+        <div className="protocol-stat"><span>PROOF TASKS</span><strong>{tapeout?.taskBank.onchain ?? '—'}<small> / {tapeout?.taskBank.total ?? '—'}</small></strong><small>已上链 / 题库总量</small></div>
+      </div>
+      <div className="processor-list">
+        {(tapeout?.processors ?? []).map((processor) => <div className="processor-card" key={processor.name}><span>{processor.name}</span><strong>{processor.multiplier === null ? '—' : `${processor.multiplier}×`}</strong><small className="mono">{processor.address || 'address unavailable'}</small></div>)}
+      </div>
+      <div className="event-heading"><span className="eyebrow">LATEST TAPEOUT EVENTS</span><span className="source-tag">{dateText(tapeout?.generatedAt)}</span></div>
+      <div className="event-list">{tapeout?.latestEvents.length ? tapeout.latestEvents.map((event) => <div className="event-row" key={`${event.block}-${event.circuitId}`}><span className="event-badge">{event.cpu}</span><strong>Circuit #{event.circuitId}</strong><span>{event.gates ?? '—'} gates</span><span className="mono">block {event.block.toLocaleString()}</span><a className="link mono" href={`${tapeout.chain.explorer || 'https://bscscan.com'}/address/${event.author}`} target="_blank" rel="noreferrer">{event.author ? shortAddress(event.author) : 'author'} ↗</a></div>) : <div className="notice empty inline"><strong>暂无可展示的流片事件</strong><span>当前 feed 没有返回可验证事件，页面不会补造 Circuit。</span></div>}</div>
+    </section>
+  )
+}
+
 export function App() {
   const [ecosystem, setEcosystem] = useState<EcosystemSnapshot | null>(null)
   const [network, setNetwork] = useState<NetworkSnapshot | null>(null)
+  const [tapeout, setTapeout] = useState<TapeoutSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [draft, setDraft] = useState<Draft>(() => readDraft())
   const [savedAt, setSavedAt] = useState<string | null>(null)
@@ -115,10 +137,11 @@ export function App() {
   const refresh = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
     try {
-      const [nextEcosystem, nextNetwork] = await Promise.all([fetchEcosystem(signal), fetchNetwork(signal)])
+      const [nextEcosystem, nextNetwork, nextTapeout] = await Promise.all([fetchEcosystem(signal), fetchNetwork(signal), fetchTapeout(signal)])
       if (!signal?.aborted) {
         setEcosystem(nextEcosystem)
         setNetwork(nextNetwork)
+        setTapeout(nextTapeout)
       }
     } catch (error) {
       if (!signal?.aborted) setNetwork({ blockNumber: null, chainId: null, checkedAt: new Date().toISOString(), rpc: null, ok: false })
@@ -154,19 +177,22 @@ export function App() {
         <section className="hero">
           <div className="hero-kicker">IGNIX × X LAYER · TAPEOUT GENESIS TRANSISTOR</div>
           <h1>把 TapeOut 生态<br /><span>变成可验证的参赛产品。</span></h1>
-          <p>Likely2X 只聚焦 X Layer：读取 IGNIX 的 TapeOut 资产快照，校验主网状态，并把 Processor、Circuit 和产品 Demo 的参赛事实收敛到一张工作台。</p>
+          <p>Likely2X 把 TapeOut 的 Processor、Circuit、任务题库和事件流放在同一张生态雷达里，再把 IGNIX 资产层与 X Layer 参赛事实连接起来。</p>
           <div className="hero-actions"><button className="button primary" type="button" onClick={() => void refresh()} disabled={loading}>{loading ? '同步中…' : '同步 TapeOut 生态'} <span>↗</span></button><a className="button ghost" href={HACKATHON} target="_blank" rel="noreferrer">查看活动规则 ↗</a></div>
         </section>
 
-        <section className="signal-grid" aria-label="X Layer live signals">
+        <section className="signal-grid" aria-label="TapeOut and X Layer live signals">
           <div className="signal-card"><span>NETWORK</span><strong>{networkLabel(network)}</strong><small>{network?.rpc || XLAYER.rpc}</small></div>
-          <div className="signal-card"><span>TAPEOUT ASSETS</span><strong>{assets.length.toString().padStart(2, '0')}</strong><small>{ecosystem?.sourceStatus === 'degraded' ? '索引降级' : 'IGNIX 当前快照'}</small></div>
-          <div className="signal-card"><span>CAMPAIGN</span><strong>{ecosystem?.campaign?.phase || '读取中'}</strong><small>{dateText(ecosystem?.campaign?.snapshotAt)}</small></div>
+          <div className="signal-card"><span>PROCESSORS</span><strong>{tapeout?.processors.length.toString().padStart(2, '0') || '—'}</strong><small>TapeOut 官方配置</small></div>
+          <div className="signal-card"><span>ACTIVE CIRCUITS</span><strong>{tapeout?.miners.slots?.toLocaleString() || '—'}</strong><small>{tapeout?.miners.addresses?.toLocaleString() || '—'} 个参与地址</small></div>
+          <div className="signal-card"><span>IGNIX CAMPAIGN</span><strong>{ecosystem?.campaign?.phase || '读取中'}</strong><small>{dateText(ecosystem?.campaign?.snapshotAt)}</small></div>
           <div className="signal-card"><span>SUBMISSION</span><strong>{completed}/{required.length}</strong><small>本机草稿完成度</small></div>
         </section>
 
+        <TapeoutProtocolPanel tapeout={tapeout} />
+
         <section className="panel ecosystem-panel">
-          <div className="panel-heading"><div><span className="eyebrow">01 · LIVE INDEX</span><h2>TapeOut 生态雷达</h2><p>只接受 API 明确标记 <code>tokenType=tapeout</code> 的资产。Agent、普通 Launch 和未知类型永远不会混入列表。</p></div><span className="source-tag">{IGNIX_API}</span></div>
+          <div className="panel-heading"><div><span className="eyebrow">02 · ISSUANCE SURFACE</span><h2>IGNIX TapeOut 资产层</h2><p>生态雷达的资产视图只接受 API 明确标记 <code>tokenType=tapeout</code> 的资产。Agent、普通 Launch 和未知类型永远不会混入列表。</p></div><span className="source-tag">{IGNIX_API}</span></div>
           {ecosystem?.sourceStatus === 'degraded' ? <div className="notice warning"><strong>索引数据不完整</strong><span>{ecosystem.errors.join(' · ') || 'IGNIX feed unavailable'}</span></div> : null}
           {ecosystem?.sourceStatus === 'live' && assets.length === 0 ? <div className="notice empty"><strong>当前公开快照没有 TapeOut 资产</strong><span>当前接口返回的候选可能全部是 Agent，Likely2X 不会猜测或伪造 TapeOut 项目。</span></div> : null}
           {assets.length > 0 ? <AssetTable assets={assets} /> : null}
@@ -175,7 +201,7 @@ export function App() {
 
         <section className="work-grid">
           <div className="panel form-panel">
-            <div className="panel-heading"><div><span className="eyebrow">02 · SUBMISSION KIT</span><h2>处理器参赛资料</h2><p>先把部署后必须提交的事实整理好。字段只保存在当前浏览器，不会上传或签名交易。</p></div><span className="completion">{completed} / {required.length}</span></div>
+            <div className="panel-heading"><div><span className="eyebrow">03 · SUBMISSION KIT</span><h2>处理器参赛资料</h2><p>先把部署后必须提交的事实整理好。字段只保存在当前浏览器，不会上传或签名交易。</p></div><span className="completion">{completed} / {required.length}</span></div>
             <div className="form-grid">
               <label><span>Processor 合约地址 <b>*</b></span><input value={draft.processor} onChange={(event) => update('processor', event.target.value)} placeholder="0x…" /></label>
               <label><span>部署钱包 <b>*</b></span><input value={draft.wallet} onChange={(event) => update('wallet', event.target.value)} placeholder="0x…" /></label>
@@ -191,7 +217,7 @@ export function App() {
           </div>
 
           <div className="panel requirements-panel">
-            <div className="panel-heading"><div><span className="eyebrow">03 · GATE CHECK</span><h2>参赛门槛</h2><p>状态来自上面的本机草稿，不代表已经完成链上动作。</p></div></div>
+            <div className="panel-heading"><div><span className="eyebrow">04 · GATE CHECK</span><h2>参赛门槛</h2><p>状态来自上面的本机草稿，不代表已经完成链上动作。</p></div></div>
             <ol className="requirements">
               <Requirement number={1} done={ready('processor', draft)} title="X Layer + TapeOut factory" copy="通过 TapeOut 工厂部署 Processor。" />
               <Requirement number={2} done={ready('supply', draft) && ready('unitPrice', draft)} title="公开发行参数" copy="供应量、单价和 cap（如有）在部署时披露。" />
