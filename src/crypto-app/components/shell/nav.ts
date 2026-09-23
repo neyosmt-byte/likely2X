@@ -8,12 +8,14 @@ export type CryptoNavItem = {
 }
 
 export const cryptoNavItems: CryptoNavItem[] = [
-  { icon: Compass, label: 'TapeOut 发现', path: '/' },
+  { icon: Compass, label: '发现', path: '/' },
   { icon: Radar, label: '生态雷达', path: '/radar' },
-  { icon: ChartCandlestick, label: '资产行情', path: '/market' },
+  { icon: ChartCandlestick, label: '项目与资产', path: '/market' },
   { icon: Activity, label: '生态异动', path: '/anomaly' },
-  { icon: Sparkles, label: 'TapeOut Alpha', path: '/alpha' },
+  { icon: Sparkles, label: '生态 Alpha', path: '/alpha' },
   { icon: Database, label: '数据同步', path: '/data' },
+  { icon: Bell, label: '通知', path: '/notifications' },
+  { icon: UserRound, label: '我的空间', path: '/account' },
 ]
 
 export const mobileNavItems: CryptoNavItem[] = [
@@ -27,10 +29,11 @@ export const mobileNavItems: CryptoNavItem[] = [
 export const mobileMoreNavItems: CryptoNavItem[] = [
   { icon: Database, label: '数据健康', path: '/data' },
   { icon: Activity, label: '异动', path: '/anomaly' },
-  { icon: UserRound, label: '账户', path: '/account' },
+  { icon: Bell, label: '通知', path: '/notifications' },
+  { icon: UserRound, label: '我的空间', path: '/account' },
 ]
 
-export const accountNavItem: CryptoNavItem = { icon: UserRound, label: '账户', path: '/account' }
+export const accountNavItem: CryptoNavItem = { icon: UserRound, label: '我的空间', path: '/account' }
 export const notificationsNavItem: CryptoNavItem = { icon: Bell, label: '通知', path: '/notifications' }
 
 export function visibleCryptoNavItems() { return cryptoNavItems }
@@ -62,5 +65,5 @@ export function isCryptoNavItemActive(pathname: string, item: CryptoNavItem) {
 }
 
 export function cryptoNavLinkTitle(item: CryptoNavItem, isActive: boolean) {
-  return `${isActive ? '当前 Crypto 模块' : '切换 Crypto 模块'}：${item.label}`
+  return `${isActive ? '当前生态模块' : '切换生态模块'}：${item.label}`
 }

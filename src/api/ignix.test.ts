@@ -10,7 +10,7 @@ describe('IGNIX TapeOut adapter', () => {
   it('keeps only explicitly typed TapeOut leaderboard rows and deduplicates launches', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.endsWith('/v1/campaigns/current')) return Promise.resolve(json({ campaign: { id: 'campaign-1', name: 'TapeOut', phase: 'active', rules: {} } }))
+      if (url.endsWith('/v1/campaigns/current')) return Promise.resolve(json({ index: { id: 'index-1' } }))
       if (url.includes('/leaderboards/mcap')) return Promise.resolve(json({ snapshot: { createdAt: '2026-09-23T00:00:00Z' }, rows: [
         { rank: 1, subject: '0x1111111111111111111111111111111111111111', tokenType: 'agent', token: { name: 'Agent', symbol: 'AGENT' } },
         { rank: 2, subject: '0x2222222222222222222222222222222222222222', tokenType: 'tapeout', metricUsd: 1234, token: { name: 'TapeOut project', symbol: 'TOP' } },
@@ -26,6 +26,6 @@ describe('IGNIX TapeOut adapter', () => {
     expect(snapshot.assets).toHaveLength(1)
     expect(snapshot.assets[0]?.contract).toBe('0x2222222222222222222222222222222222222222')
     expect(snapshot.assets[0]?.name).toBe('TapeOut project')
-    expect(snapshot.campaign?.snapshotAt).toBe('2026-09-23T00:00:00Z')
+    expect(snapshot.indexContext?.snapshotAt).toBe('2026-09-23T00:00:00Z')
   })
 })

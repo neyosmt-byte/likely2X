@@ -6,9 +6,9 @@ import { visibleCryptoNavItems } from './nav.ts'
 type CommandCenterProps = { onOpenChange: (open: boolean) => void; open: boolean }
 
 const shortcuts = [
-  { label: 'Processor / Circuit 雷达', detail: '处理器、流片事件、参与地址', href: '/radar' },
-  { label: 'TapeOut Alpha', detail: '候选排序、Proof-of-Design、X Layer 适配', href: '/alpha' },
-  { label: '协议与资产行情', detail: 'IGNIX TapeOut 资产和协议指标', href: '/market' },
+  { label: '生态雷达', detail: 'Processor、Circuit、参与地址、Proof-of-Design', href: '/radar' },
+  { label: '生态 Alpha', detail: '解释性排序、项目事实、Watchlist', href: '/alpha' },
+  { label: '项目与资产', detail: 'IGNIX TapeOut 资产和协议指标', href: '/market' },
   { label: '生态异动', detail: 'Circuit 窗口、容量与题库变化', href: '/anomaly' },
   { label: '数据源健康', detail: 'TapeOut、IGNIX、X Layer 读数', href: '/data' },
 ]

@@ -1,6 +1,6 @@
 export const TAPEOUT = {
   website: 'https://tapeout.net',
-  dataBase: import.meta.env.VITE_TAPEOUT_DATA_BASE || (import.meta.env.DEV ? '/tapeout-api' : 'https://tapeout.net'),
+  dataBase: import.meta.env.VITE_ECOSYSTEM_API_BASE || import.meta.env.VITE_TAPEOUT_DATA_BASE || (import.meta.env.DEV ? '/tapeout-api' : 'https://tapeout.net'),
   endpoints: {
     config: '/pod/pod-mainnet.json',
     stats: '/pod/pod-stats.json',
@@ -14,6 +14,14 @@ export type TapeoutProcessor = {
   fromBlock: number | null
   multiplier: number | null
   name: string
+}
+
+export type TapeoutContracts = {
+  factory: string | null
+  lens: string | null
+  lensNext: string | null
+  mining: string | null
+  token: string | null
 }
 
 export type TapeoutEvent = {
@@ -46,6 +54,13 @@ export type TapeoutTask = {
   onchain: boolean | null
   refGates: number | null
   runGas: number | null
+  cycles: number | null
+  nIn: number | null
+  nOut: number | null
+  refDepth: number | null
+  refNand: number | null
+  refLatch: number | null
+  trivial: boolean | null
 }
 
 export type TapeoutMinerOwner = {
@@ -64,7 +79,7 @@ export type TapeoutSnapshot = {
   miners: { addresses: number | null; slots: number | null }
   minerOwners: TapeoutMinerOwner[]
   processors: TapeoutProcessor[]
-  sourceStatus: 'live' | 'degraded'
+  sourceStatus: 'live' | 'cached' | 'stale' | 'degraded'
   stats: {
     currentRate: string | null
     taskCount: number | null
@@ -78,6 +93,18 @@ export type TapeoutSnapshot = {
   taskBank: { onchain: number | null; total: number | null }
   tasks: TapeoutTask[]
   chain: { chainId: number | null; explorer: string | null; rpc: string | null }
+  contracts: TapeoutContracts
+  token: { name: string | null; symbol: string | null }
+  source: string
+  taskBankMeta: {
+    comb: number | null
+    seq: number | null
+    totalNand: number | null
+    totalLatch: number | null
+    onchainGates: number | null
+    maxRunGas: number | null
+    groups: string[]
+  }
 }
 
 type TapeoutConfig = {
@@ -86,6 +113,10 @@ type TapeoutConfig = {
   rpc?: string
   cpus?: Record<string, { address?: string; multiplier?: number; fromBlock?: number }>
   circuits?: Array<Partial<TapeoutCircuit>>
+  contracts?: Partial<Record<keyof TapeoutContracts, string>>
+  tokenName?: string
+  tokenSymbol?: string
+  _meta?: { dataState?: 'live' | 'cached' | 'stale' | 'degraded'; error?: string | null }
 }
 type TapeoutStats = {
   generatedAt?: string
@@ -100,9 +131,10 @@ type TapeoutStats = {
   taskCount?: number
   unverifiedBps?: number
   events?: Array<Partial<TapeoutEvent>>
+  _meta?: { dataState?: 'live' | 'cached' | 'stale' | 'degraded'; error?: string | null }
 }
-type TapeoutTaskbank = { meta?: { onchain?: number; total?: number }; tasks?: Array<Partial<TapeoutTask>> }
-type TapeoutMiners = { count?: number; owners?: Record<string, Array<{ block?: number; cpu?: string; circuitId?: number; circuits?: string; taskId?: number }>> }
+type TapeoutTaskbank = { meta?: { onchain?: number; total?: number; comb?: number; seq?: number; totalNand?: number; totalLatch?: number; onchainGates?: number; maxRunGas?: number; groups?: string[] }; tasks?: Array<Partial<TapeoutTask>>; _meta?: { dataState?: 'live' | 'cached' | 'stale' | 'degraded'; error?: string | null } }
+type TapeoutMiners = { count?: number; owners?: Record<string, Array<{ block?: number; cpu?: string; circuitId?: number; circuits?: string; taskId?: number }>>; _meta?: { dataState?: 'live' | 'cached' | 'stale' | 'degraded'; error?: string | null } }
 
 async function getTapeout<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${TAPEOUT.dataBase}${path}`, { cache: 'no-store', signal })
@@ -137,9 +169,9 @@ function circuitFrom(row: Partial<TapeoutCircuit>): TapeoutCircuit | null {
 }
 
 function taskFrom(row: Partial<TapeoutTask>): TapeoutTask | null {
-  const id = numeric(row.id)
+  const id = numeric(row.id ?? (row as Partial<TapeoutTask> & { taskId?: number }).taskId)
   if (id === null && !row.name) return null
-  return { id, name: String(row.name || `Task ${id ?? 'unknown'}`), kind: row.kind ? String(row.kind) : null, tier: row.tier ? String(row.tier) : null, group: row.group ? String(row.group) : null, onchain: typeof row.onchain === 'boolean' ? row.onchain : null, refGates: numeric(row.refGates), runGas: numeric(row.runGas) }
+  return { id, name: String(row.name || `Task ${id ?? 'unknown'}`), kind: row.kind ? String(row.kind) : null, tier: row.tier ? String(row.tier) : null, group: row.group ? String(row.group) : null, onchain: typeof row.onchain === 'boolean' ? row.onchain : null, refGates: numeric(row.refGates), runGas: numeric(row.runGas), cycles: numeric(row.cycles), nIn: numeric(row.nIn), nOut: numeric(row.nOut), refDepth: numeric(row.refDepth), refNand: numeric(row.refNand), refLatch: numeric(row.refLatch), trivial: typeof row.trivial === 'boolean' ? row.trivial : null }
 }
 
 export async function fetchTapeout(signal?: AbortSignal): Promise<TapeoutSnapshot> {
@@ -156,6 +188,8 @@ export async function fetchTapeout(signal?: AbortSignal): Promise<TapeoutSnapsho
   const statsData = stats.status === 'fulfilled' ? stats.value : null
   const taskData = taskbank.status === 'fulfilled' ? taskbank.value : null
   const minerData = miners.status === 'fulfilled' ? miners.value : null
+  const feedStates = [configData?._meta?.dataState, statsData?._meta?.dataState, taskData?._meta?.dataState, minerData?._meta?.dataState].filter((state): state is NonNullable<typeof state> => Boolean(state))
+  errors.push(...[configData, statsData, taskData, minerData].flatMap((feed) => feed?._meta?.error ? [feed._meta.error] : []))
   const processors = Object.entries(configData?.cpus ?? {}).map(([name, processor]) => ({
     address: String(processor.address || ''),
     fromBlock: numeric(processor.fromBlock),
@@ -180,7 +214,7 @@ export async function fetchTapeout(signal?: AbortSignal): Promise<TapeoutSnapsho
     miners: { addresses: minerData?.owners ? Object.keys(minerData.owners).length : null, slots: numeric(statsData?.minerCount ?? minerData?.count) },
     minerOwners,
     processors,
-    sourceStatus: configData && statsData ? (errors.length === 0 ? 'live' : 'degraded') : 'degraded',
+    sourceStatus: [config, stats, taskbank, miners].some((result) => result.status === 'rejected') || feedStates.includes('degraded') ? 'degraded' : feedStates.includes('stale') ? 'stale' : feedStates.includes('cached') ? 'cached' : 'live',
     stats: {
       currentRate: statsData?.currentRate ?? null,
       taskCount: numeric(statsData?.taskCount),
@@ -194,5 +228,23 @@ export async function fetchTapeout(signal?: AbortSignal): Promise<TapeoutSnapsho
     taskBank: { onchain: numeric(taskData?.meta?.onchain), total: numeric(taskData?.meta?.total) },
     tasks,
     chain: { chainId: numeric(configData?.chainId ?? statsData?.chainId), explorer: configData?.explorer ?? null, rpc: configData?.rpc ?? null },
+    contracts: {
+      factory: configData?.contracts?.factory ?? null,
+      lens: configData?.contracts?.lens ?? null,
+      lensNext: configData?.contracts?.lensNext ?? null,
+      mining: configData?.contracts?.mining ?? null,
+      token: configData?.contracts?.token ?? null,
+    },
+    token: { name: configData?.tokenName ?? null, symbol: configData?.tokenSymbol ?? null },
+    source: `${TAPEOUT.website}${TAPEOUT.endpoints.config}`,
+    taskBankMeta: {
+      comb: numeric(taskData?.meta?.comb),
+      seq: numeric(taskData?.meta?.seq),
+      totalNand: numeric(taskData?.meta?.totalNand),
+      totalLatch: numeric(taskData?.meta?.totalLatch),
+      onchainGates: numeric(taskData?.meta?.onchainGates),
+      maxRunGas: numeric(taskData?.meta?.maxRunGas),
+      groups: taskData?.meta?.groups ?? [],
+    },
   }
 }

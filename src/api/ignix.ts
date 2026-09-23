@@ -8,9 +8,10 @@ export const XLAYER = {
 } as const
 
 export const IGNIX_API = 'https://api.ignix.bot'
-export const HACKATHON = 'https://ignix.bot/x_campaign'
+const ECOSYSTEM_API_BASE = import.meta.env.VITE_ECOSYSTEM_API_BASE?.replace(/\/$/, '')
 
 export type TapeoutAsset = {
+  chainId: number | null
   contract: string
   graduated: boolean | null
   liquidityUsd: number | null
@@ -22,26 +23,16 @@ export type TapeoutAsset = {
   volumeUsd: number | null
 }
 
-export type Campaign = {
+export type IgnixIndexContext = {
   id: string | null
-  name: string | null
-  phase: string | null
-  startAt: string | null
-  endAt: string | null
   snapshotAt: string | null
-  rules: {
-    liquidityMinMcapPct: number | null
-    liquidityMinUsd: number | null
-    minTradeUsd: number | null
-    minVolumeUsd: number | null
-  }
 }
 
 export type EcosystemSnapshot = {
   assets: TapeoutAsset[]
-  campaign: Campaign | null
+  indexContext: IgnixIndexContext | null
   fetchedAt: string
-  sourceStatus: 'live' | 'degraded'
+  sourceStatus: 'live' | 'cached' | 'stale' | 'degraded'
   errors: string[]
 }
 
@@ -55,19 +46,16 @@ export type NetworkSnapshot = {
 
 type Envelope<T> = { code?: number; data?: T; message?: string }
 type CurrentData = {
-  campaign?: {
+  index?: {
     id?: string | null
-    name?: string | null
-    phase?: string | null
-    startAt?: string | null
-    endAt?: string | null
-    rules?: Record<string, unknown>
   } | null
+  campaign?: { id?: string | null } | null
 }
 type LeaderboardData = {
   rows?: Array<{
     rank?: number
     subject?: string
+    chainId?: number
     tokenType?: string
     metricUsd?: number
     liquidityUsd?: number
@@ -80,6 +68,7 @@ type LeaderboardData = {
 type LaunchData = {
   launches?: Array<{
     tokenAddress?: string
+    chainId?: number
     tokenType?: string
     name?: string
     symbol?: string
@@ -112,24 +101,10 @@ async function getIgnix<T>(path: string, signal?: AbortSignal) {
   return body.data
 }
 
-function campaignFrom(data: CurrentData | null): Campaign | null {
-  const source = data?.campaign
+function indexContextFrom(data: CurrentData | null): IgnixIndexContext | null {
+  const source = data?.index ?? data?.campaign
   if (!source) return null
-  const rules = source.rules ?? {}
-  return {
-    id: source.id ?? null,
-    name: source.name ?? null,
-    phase: source.phase ?? null,
-    startAt: source.startAt ?? null,
-    endAt: source.endAt ?? null,
-    snapshotAt: null,
-    rules: {
-      liquidityMinMcapPct: numberOrNull(rules.liquidityMinMcapPct),
-      liquidityMinUsd: numberOrNull(rules.liquidityMinUsd),
-      minTradeUsd: numberOrNull(rules.minTradeUsd),
-      minVolumeUsd: numberOrNull(rules.minVolumeUsd),
-    },
-  }
+  return { id: source.id ?? null, snapshotAt: null }
 }
 
 function fromLeaderboard(row: NonNullable<LeaderboardData['rows']>[number]): TapeoutAsset | null {
@@ -137,6 +112,7 @@ function fromLeaderboard(row: NonNullable<LeaderboardData['rows']>[number]): Tap
   const contract = addressOrEmpty(row.subject)
   if (!contract) return null
   return {
+    chainId: numberOrNull(row.chainId),
     contract,
     graduated: typeof row.graduated === 'boolean' ? row.graduated : null,
     liquidityUsd: numberOrNull(row.liquidityUsd),
@@ -154,6 +130,7 @@ function fromLaunch(row: NonNullable<LaunchData['launches']>[number]): TapeoutAs
   const contract = addressOrEmpty(row.tokenAddress)
   if (!contract) return null
   return {
+    chainId: numberOrNull(row.chainId),
     contract,
     graduated: typeof row.graduated === 'boolean' ? row.graduated : null,
     liquidityUsd: null,
@@ -168,13 +145,23 @@ function fromLaunch(row: NonNullable<LaunchData['launches']>[number]): TapeoutAs
 
 export async function fetchEcosystem(signal?: AbortSignal): Promise<EcosystemSnapshot> {
   const fetchedAt = new Date().toISOString()
+  if (ECOSYSTEM_API_BASE) {
+    try {
+      const response = await fetch(`${ECOSYSTEM_API_BASE}/api/ecosystem/projects`, { headers: { Accept: 'application/json' }, cache: 'no-store', signal })
+      const payload = await response.json() as { assets?: TapeoutAsset[]; dataState?: string; observedAt?: string; errors?: string[] }
+      if (!response.ok || !Array.isArray(payload.assets)) throw new Error(`Ecosystem API ${response.status}`)
+      return { assets: payload.assets.filter((asset) => asset.contract && /^0x[0-9a-f]{40}$/i.test(asset.contract) && (asset as TapeoutAsset & { tokenType?: string }).tokenType === 'tapeout'), indexContext: { id: null, snapshotAt: payload.observedAt ?? null }, fetchedAt: payload.observedAt ?? fetchedAt, sourceStatus: payload.dataState === 'live' || payload.dataState === 'cached' || payload.dataState === 'stale' || payload.dataState === 'degraded' ? payload.dataState : 'degraded', errors: payload.errors ?? [] }
+    } catch (error) {
+      return { assets: [], indexContext: null, fetchedAt, sourceStatus: 'degraded', errors: [error instanceof Error ? error.message : 'Ecosystem API unavailable'] }
+    }
+  }
   try {
     const current = await getIgnix<CurrentData>('/v1/campaigns/current', signal)
-    const campaign = campaignFrom(current)
-    const campaignId = campaign?.id
+    const indexContext = indexContextFrom(current)
+    const indexId = indexContext?.id
     const [leaderboard, launches] = await Promise.allSettled([
-      campaignId
-        ? getIgnix<LeaderboardData>(`/v1/campaigns/${encodeURIComponent(campaignId)}/leaderboards/mcap?page=1&limit=50`, signal)
+      indexId
+        ? getIgnix<LeaderboardData>(`/v1/campaigns/${encodeURIComponent(indexId)}/leaderboards/mcap?page=1&limit=50`, signal)
         : Promise.resolve(null),
       getIgnix<LaunchData>('/v1/launches?limit=50&page=1', signal),
     ])
@@ -182,7 +169,7 @@ export async function fetchEcosystem(signal?: AbortSignal): Promise<EcosystemSna
       .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
       .map((result) => result.reason instanceof Error ? result.reason.message : 'IGNIX feed unavailable')
     const snapshotAt = leaderboard.status === 'fulfilled' ? leaderboard.value?.snapshot?.createdAt ?? null : null
-    const resolvedCampaign = campaign && snapshotAt ? { ...campaign, snapshotAt } : campaign
+    const resolvedIndex = indexContext && snapshotAt ? { ...indexContext, snapshotAt } : indexContext
     const assets = new Map<string, TapeoutAsset>()
     if (leaderboard.status === 'fulfilled') {
       for (const row of leaderboard.value?.rows ?? []) {
@@ -198,7 +185,7 @@ export async function fetchEcosystem(signal?: AbortSignal): Promise<EcosystemSna
     }
     return {
       assets: [...assets.values()].sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER)),
-      campaign: resolvedCampaign,
+      indexContext: resolvedIndex,
       fetchedAt,
       sourceStatus: errors.length === 0 ? 'live' : 'degraded',
       errors,
@@ -206,7 +193,7 @@ export async function fetchEcosystem(signal?: AbortSignal): Promise<EcosystemSna
   } catch (error) {
     return {
       assets: [],
-      campaign: null,
+      indexContext: null,
       fetchedAt,
       sourceStatus: 'degraded',
       errors: [error instanceof Error ? error.message : 'IGNIX API unavailable'],

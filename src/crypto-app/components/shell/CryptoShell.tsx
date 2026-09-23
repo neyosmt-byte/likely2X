@@ -9,6 +9,12 @@ import { TopBar } from './TopBar.tsx'
 export function CryptoShell() {
   const [collapsed, setCollapsed] = useState(true)
   const [commandOpen, setCommandOpen] = useState(false)
+  const [density, setDensity] = useState(() => {
+    try {
+      const workspace = JSON.parse(window.localStorage.getItem('likely2x:workspace:v2') || '{}') as { density?: string }
+      return workspace.density === 'compact' ? 'compact' : 'comfortable'
+    } catch { return 'comfortable' }
+  })
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -21,8 +27,17 @@ export function CryptoShell() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  useEffect(() => {
+    function onWorkspaceChange(event: Event) {
+      const state = (event as CustomEvent<{ density?: string }>).detail
+      setDensity(state?.density === 'compact' ? 'compact' : 'comfortable')
+    }
+    window.addEventListener('likely2x:workspace', onWorkspaceChange)
+    return () => window.removeEventListener('likely2x:workspace', onWorkspaceChange)
+  }, [])
+
   return (
-    <div className="crypto-app flex min-h-screen">
+    <div className="crypto-app flex min-h-screen" data-density={density}>
       <Sidebar collapsed={collapsed} onCollapsedChange={setCollapsed} />
       <div className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0">
         <TopBar onCommandOpen={() => setCommandOpen(true)} />
