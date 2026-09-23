@@ -164,3 +164,72 @@ footer { display: flex; justify-content: space-between; gap: 20px; padding: 27px
   .meta-line { margin-left: 19px; margin-right: 19px; }
   footer { flex-direction: column; gap: 6px; }
 }
+
+/* Likely2X TapeOut workspace layer. The original Likely shell owns navigation;
+   these classes provide the data surfaces inside each route. */
+.tapeout-embedded { min-height: 0; background: transparent; }
+.tapeout-main { width: 100%; max-width: 1280px; margin: 0 auto; padding: 18px 0 32px; }
+.tapeout-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 24px 4px 6px; }
+.tapeout-heading h1 { margin: 10px 0 8px; color: var(--text); font-size: clamp(30px, 4vw, 52px); letter-spacing: -.06em; line-height: 1; }
+.tapeout-heading p { max-width: 720px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.heading-actions { display: grid; justify-items: end; gap: 12px; min-width: 230px; }
+.source-state { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.source-state small { width: 100%; color: var(--muted); font-family: var(--mono); font-size: 9px; line-height: 1.5; text-align: right; }
+.entry-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 20px 24px 24px; }
+.entry-card { display: grid; align-content: start; gap: 9px; min-height: 152px; padding: 16px; border: 1px solid var(--line); background: rgba(16, 31, 47, .62); text-decoration: none; transition: border-color .16s ease, transform .16s ease; }
+.entry-card:hover { border-color: var(--cyan-dim); transform: translateY(-2px); }
+.entry-card strong { color: var(--text); font-size: 14px; }
+.entry-card span { color: var(--muted); font-size: 11px; line-height: 1.55; }
+.entry-card b { margin-top: auto; color: var(--cyan); font-family: var(--mono); font-size: 10px; font-weight: 500; }
+.radar-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 24px 0 16px; padding-bottom: 1px; border-bottom: 1px solid var(--line); }
+.radar-tab { min-height: 36px; padding: 0 13px; border: 1px solid transparent; border-radius: 4px 4px 0 0; background: transparent; color: var(--muted); font-family: var(--mono); font-size: 10px; cursor: pointer; }
+.radar-tab:hover { color: var(--text); }
+.radar-tab.active { border-color: var(--line); border-bottom-color: var(--bg); background: var(--panel); color: var(--cyan); }
+.signal-grid.compact { grid-template-columns: repeat(4, 1fr); margin-top: 12px; }
+.radar-detail-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin: 20px 24px; border: 1px solid var(--line); background: var(--line); }
+.detail-stat { min-height: 120px; padding: 17px; background: var(--panel-2); }
+.detail-stat span, .detail-stat small { display: block; color: var(--muted); font-family: var(--mono); font-size: 9px; }
+.detail-stat strong { display: block; margin: 12px 0 6px; color: var(--text); font-size: 23px; letter-spacing: -.04em; }
+.provenance-list { display: grid; gap: 11px; margin: 0; padding: 20px 24px 24px; list-style: none; }
+.provenance-list li { display: grid; gap: 5px; padding: 12px 14px; border-left: 2px solid var(--cyan-dim); background: rgba(16, 31, 47, .45); }
+.provenance-list strong { color: var(--text); font-family: var(--mono); font-size: 10px; }
+.provenance-list span { color: var(--muted); font-size: 11px; line-height: 1.55; }
+.alpha-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin-top: 25px; border: 1px solid var(--line); background: var(--line); }
+.alpha-summary > div { min-height: 102px; padding: 16px; background: var(--panel); }
+.alpha-summary span, .alpha-summary small { display: block; color: var(--muted); font-family: var(--mono); font-size: 9px; }
+.alpha-summary strong { display: block; margin: 10px 0 6px; color: var(--cyan); font-size: 20px; letter-spacing: -.04em; }
+.candidate-list { display: grid; gap: 9px; padding: 20px 24px 24px; }
+.candidate-card { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 15px 17px; border: 1px solid var(--line); background: rgba(16, 31, 47, .55); }
+.candidate-card h3 { margin: 6px 0 4px; color: var(--text); font-size: 17px; }
+.candidate-card p { margin: 0; color: var(--muted); font-family: var(--mono); font-size: 9px; }
+.candidate-card > strong { display: grid; justify-items: end; color: var(--amber); font-size: 25px; }
+.candidate-card > strong small { color: var(--muted); font-family: var(--mono); font-size: 8px; font-weight: 400; }
+.health-list { display: grid; gap: 1px; margin: 20px 24px 24px; border: 1px solid var(--line); background: var(--line); }
+.health-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 64px; padding: 12px 14px; background: var(--panel-2); }
+.health-row strong, .health-row small { display: block; }
+.health-row strong { color: var(--text); font-size: 12px; }
+.health-row small { margin-top: 4px; overflow: hidden; color: var(--muted); font-family: var(--mono); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.health-row > .mono { color: var(--muted); font-size: 9px; }
+.health-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 10px rgba(242, 173, 84, .55); }
+.health-dot.live { background: var(--green); box-shadow: 0 0 10px rgba(100, 216, 154, .55); }
+
+@media (max-width: 900px) {
+  .entry-grid { grid-template-columns: repeat(2, 1fr); }
+  .radar-detail-grid, .alpha-summary { grid-template-columns: repeat(2, 1fr); }
+  .heading-actions { min-width: 180px; }
+}
+@media (max-width: 640px) {
+  .tapeout-main { padding-top: 0; }
+  .tapeout-heading { display: grid; gap: 17px; padding: 16px 0 0; }
+  .heading-actions { justify-items: start; }
+  .source-state { justify-content: flex-start; }
+  .source-state small { text-align: left; }
+  .entry-grid { grid-template-columns: 1fr; padding: 16px; }
+  .signal-grid.compact, .radar-detail-grid, .alpha-summary { grid-template-columns: repeat(2, 1fr); }
+  .panel-heading { gap: 10px; }
+  .panel-heading p { max-width: none; }
+  .candidate-list { padding: 16px; }
+  .health-list { margin: 16px; }
+  .health-row { grid-template-columns: auto minmax(0, 1fr); }
+  .health-row > .mono { grid-column: 2; }
+}

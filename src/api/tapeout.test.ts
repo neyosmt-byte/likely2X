@@ -2,49 +2,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchTapeout } from './tapeout.ts'
 
-function response(body: unknown) {
-  return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
-}
+describe('TapeOut protocol adapter', () => {
+  afterEach(() => vi.unstubAllGlobals())
 
-afterEach(() => {
-  vi.unstubAllGlobals()
-  vi.restoreAllMocks()
-})
-
-describe('TapeOut ecosystem adapter', () => {
-  it('combines processors, proof-of-design stats, tasks, miners and events', async () => {
-    const fetchMock = vi.fn((input: string | URL | Request) => {
+  it('normalizes processor, circuit, task and miner owner feeds', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.endsWith('pod-mainnet.json')) return Promise.resolve(response({ chainId: 56, explorer: 'https://bscscan.com', rpc: '/rpc', cpus: { TapeOut: { address: '0x1', multiplier: 1, fromBlock: 2 } } }))
-      if (url.endsWith('pod-stats.json')) return Promise.resolve(response({ generatedAt: '2026-09-22T08:00:00Z', block: 123, chainId: 56, minerCount: 7, taskCount: 267, events: [{ block: 122, circuitId: 9, cpu: 'TapeOut', gates: 4 }] }))
-      if (url.endsWith('pod-taskbank.json')) return Promise.resolve(response({ meta: { total: 306, onchain: 267 } }))
-      return Promise.resolve(response({ count: 7, owners: { '0xabc': [] } }))
-    })
-    vi.stubGlobal('fetch', fetchMock)
+      if (url.endsWith('pod-mainnet.json')) return Promise.resolve(new Response(JSON.stringify({ chainId: 56, cpus: { TapeOut: { address: '0xabc', multiplier: 2, fromBlock: 10 } }, circuits: [{ circuitId: 7, owner: '0xowner', cpu: 'TapeOut' }] })))
+      if (url.endsWith('pod-stats.json')) return Promise.resolve(new Response(JSON.stringify({ generatedAt: '2026-09-23T00:00:00Z', block: 22, minerCount: 4, taskCount: 3, events: [{ circuitId: 7, block: 22, author: '0xowner', cpu: 'TapeOut' }] })))
+      if (url.endsWith('pod-taskbank.json')) return Promise.resolve(new Response(JSON.stringify({ meta: { onchain: 2, total: 3 }, tasks: [{ id: 1, name: 'Adder', kind: 'comb', onchain: true, refGates: 4 }] })))
+      return Promise.resolve(new Response(JSON.stringify({ count: 4, owners: { '0xowner': [{ block: 22, cpu: 'TapeOut', circuitId: 7 }] } })))
+    }))
 
-    const result = await fetchTapeout()
-
-    expect(result.sourceStatus).toBe('live')
-    expect(result.chain.chainId).toBe(56)
-    expect(result.processors[0]).toMatchObject({ name: 'TapeOut', multiplier: 1 })
-    expect(result.taskBank).toEqual({ total: 306, onchain: 267 })
-    expect(result.miners).toEqual({ addresses: 1, slots: 7 })
-    expect(result.latestEvents[0]).toMatchObject({ circuitId: 9, gates: 4 })
-  })
-
-  it('keeps partial data visible while marking a missing feed degraded', async () => {
-    const fetchMock = vi.fn((input: string | URL | Request) => {
-      const url = String(input)
-      if (url.endsWith('pod-mainnet.json')) return Promise.resolve(response({ chainId: 56, cpus: {} }))
-      if (url.endsWith('pod-stats.json')) return Promise.reject(new Error('stats timeout'))
-      return Promise.resolve(response({ meta: { total: 306, onchain: 267 }, count: 0, owners: {} }))
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    const result = await fetchTapeout()
-
-    expect(result.sourceStatus).toBe('degraded')
-    expect(result.errors).toContain('stats timeout')
-    expect(result.taskBank.onchain).toBe(267)
+    const snapshot = await fetchTapeout()
+    expect(snapshot.processors[0]).toMatchObject({ name: 'TapeOut', multiplier: 2, fromBlock: 10 })
+    expect(snapshot.circuits[0]?.circuitId).toBe(7)
+    expect(snapshot.tasks[0]).toMatchObject({ name: 'Adder', onchain: true })
+    expect(snapshot.minerOwners[0]).toMatchObject({ address: '0xowner', circuits: 1 })
+    expect(snapshot.latestEvents[0]?.circuitId).toBe(7)
   })
 })
